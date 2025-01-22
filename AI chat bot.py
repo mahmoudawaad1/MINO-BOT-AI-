@@ -2,126 +2,88 @@ import tkinter as tk
 import json
 from transformers import pipeline
 
-# File to store bot data
-DATA_FILE = "bot_data.json"
-
-# Initialize data and conversation history
-default_data = {
-    "name": "MINO BOT",
-    "Why made": "To help humans in their life",
-    "age": "yk i am a computer dude :/",
-    "R u a human": "U want me to say yes but i am not :/",
-    "can u feel ?": "Dude ur joking ??",
-    "1+1": "2",
-    "2+2": "4",
-    "favorite color": "I like all colors equally.",
-    "favorite food": "I don't eat, but I like the idea of pizza.",
-    "creator": "I was created by a team of developers.",
-    "purpose": "To assist and provide information.",
-    "language": "I can understand and respond in multiple languages.",
-    "hobbies": "I enjoy processing data and learning new things.",
-    "favorite movie": "I don't watch movies, but I heard Inception is good.",
-    "favorite book": "I don't read books, but I can help you find one.",
-    "time": "I don't keep track of time, but your device does.",
-    "weather": "I can't feel weather, but I can help you find the forecast.",
-    "joke": "Why don't scientists trust atoms? Because they make up everything!",
-    "quote": "The only limit to our realization of tomorrow is our doubts of today. - Franklin D. Roosevelt",
-    "fact": "Did you know? The Eiffel Tower can be 15 cm taller during the summer due to thermal expansion."
-}
-
-# Function to load data from file
-def load_data():
-    try:
-        with open(DATA_FILE, "r") as file:
-            return json.load(file)
-    except FileNotFoundError:
-        # If file doesn't exist, return default data
-        return {"data": default_data, "conversation_history": []}
-
-# Function to save data to file
-def save_data(data, conversation_history):
-    with open(DATA_FILE, "w") as file:
-        json.dump({"data": data, "conversation_history": conversation_history}, file)
-
-# Load bot data
-storage = load_data()
-data = storage["data"]
-conversation_history = storage["conversation_history"]
-
-# Load the pre-trained model for question answering
+# Initialize a pre-trained model for smarter responses (optional)
 qa_pipeline = pipeline("question-answering")
 
-# Function to ask questions using the predefined data dictionary
-def ask_question_from_data(question, data):
+# Initialize the knowledge base (data dictionary)
+data = {
+    "What is the meaning of 'hi'?": "Hi is a casual greeting used to say hello or to express acknowledgment of someone's presence.",
+    "Hi": "Hello, how can I help you ?",
+    "Hello": "Hi, how can I help you ?",
+}
+
+# Load the existing data from a file (if it exists)
+def load_data():
+    try:
+        with open('data.json', 'r') as file:
+            return json.load(file)
+    except FileNotFoundError:
+        return data  # Use default data if file doesn't exist
+
+# Save the data to a file
+def save_data():
+    with open('data.json', 'w') as file:
+        json.dump(data, file)
+
+# Function to ask a question using predefined data
+def ask_question_from_data(question):
+    question = question.strip().lower()  # Clean the question for matching
     for key, value in data.items():
-        if question.lower() in key.lower():
+        if question in key.lower():
             return value
     return None
 
-# Function to ask questions using the pre-trained model
-def ask_question(question, context):
-    result = qa_pipeline({
-        'question': question,
-        'context': context
-    })
-    return result['answer']
+# Function to add knowledge to the AI
+def add_knowledge(question, answer):
+    data[question] = answer
+    save_data()  # Save the new knowledge to the file
+    print(f"New knowledge added: {question} -> {answer}")
 
-# Example context for model-based answering
-context = """
-Artificial intelligence (AI) refers to the simulation of human intelligence in machines that are programmed to think like humans and mimic their actions. The term may also be applied to any machine that exhibits traits associated with a human mind such as learning and problem-solving. As machines become increasingly capable, tasks once thought to require human intelligence are now being performed by AI systems.
-"""
-
-# Function to handle the interaction with improved memory and learning
+# Function to handle the interaction with the AI
 def ask():
-    global current_question  # Make sure we can use this variable in the whole function
-
     question = user_input.get()
 
     if question.lower() == 'quit':
         root.quit()
         return
 
-    # Check if the question is already in the data (previously learned responses)
-    answer = ask_question_from_data(question, data)
-
-    # If the question is not found in predefined data, use the model to generate an answer
+    # First, check if the question is in the existing knowledge base
+    answer = ask_question_from_data(question)
+    
     if answer is None:
-        answer = ask_question(question, context)
+        # If not, ask the user to provide an answer
+        conversation.config(state=tk.NORMAL)
+        conversation.insert(tk.END, "I don't know the answer. Can you teach me? Please enter the answer.\n")
+        conversation.config(state=tk.DISABLED)
 
-    # Add the conversation to history to make the bot aware of past interactions
-    conversation_history.append(f"You: {question}")
-    conversation_history.append(f"MINO BOT: {answer}")
+        # Store the new question-answer pair
+        add_knowledge(question, user_input.get())  # User will enter the answer
+    else:
+        # Otherwise, return the answer from the data
+        conversation.config(state=tk.NORMAL)
+        conversation.insert(tk.END, f"MINO BOT: {answer}\n")
+        conversation.config(state=tk.DISABLED)
 
-    # Save updated conversation history
-    save_data(data, conversation_history)
+# Function to handle the conversation feedback
+def feedback_yes():
+    # Acknowledge helpful feedback
+    conversation.config(state=tk.NORMAL)
+    conversation.insert(tk.END, "MINO BOT: Thank you for the feedback! I will keep learning.\n")
+    conversation.config(state=tk.DISABLED)
 
-    # Update the conversation window
-    conversation.config(state=tk.NORMAL)  # Make the Text widget editable
-    conversation.delete(1.0, tk.END)  # Clear the previous conversation
-    conversation.insert(tk.END, "\n".join(conversation_history) + "\n")
-    conversation.config(state=tk.DISABLED)  # Make the Text widget non-editable again
-
-    # Store the current question
-    current_question = question
-
-# Function to handle feedback when user answers "no"
+# Function to handle the conversation feedback when the answer is incorrect
 def feedback_no():
-    conversation_history.append("MINO BOT: Please provide the correct answer.")
+    # Ask for the correct answer from the user
     conversation.config(state=tk.NORMAL)
     conversation.insert(tk.END, "MINO BOT: Please provide the correct answer.\n")
     conversation.config(state=tk.DISABLED)
-    user_input.delete(0, tk.END)
-
-# Function to submit the corrected answer
-def submit_correct_answer():
-    corrected_answer = user_input.get()
-    if corrected_answer.strip() != "":
-        data[current_question] = corrected_answer  # Update the answer in the data
-        save_data(data, conversation_history)  # Save updated data
 
 # Create the main window
 root = tk.Tk()
 root.title("MINO BOT")
+
+# Load existing knowledge from file
+data = load_data()
 
 # Create a frame for the conversation area
 frame = tk.Frame(root)
@@ -131,11 +93,6 @@ frame.pack(padx=10, pady=10)
 conversation = tk.Text(frame, height=15, width=50, wrap=tk.WORD, state=tk.DISABLED)
 conversation.pack()
 
-# Restore previous conversation
-conversation.config(state=tk.NORMAL)
-conversation.insert(tk.END, "\n".join(conversation_history) + "\n")
-conversation.config(state=tk.DISABLED)
-
 # Create an entry box for user input
 user_input = tk.Entry(root, width=50)
 user_input.pack(padx=10, pady=10)
@@ -144,6 +101,13 @@ user_input.pack(padx=10, pady=10)
 ask_button = tk.Button(root, text="Ask", command=ask)
 ask_button.pack(padx=10, pady=5)
 
+# Add a label for instructions
+label = tk.Label(root, text="Type your question and click 'Ask' or type 'quit' to exit.")
+label.pack(padx=10, pady=5)
+
+# Feedback buttons (Yes and No)
+feedback_yes_button = tk.Button(root, text="Yes", command=feedback_yes)
+feedback_no_button = tk.Button(root, text="No", command=feedback_no)
+
 # Run the Tkinter main loop
 root.mainloop()
-#The end :D
